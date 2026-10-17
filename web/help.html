@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings guide · Robin · SPARROW</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<style>
+:root {
+  --primary: #0e4a59;
+  --bg-page: #f7f8fa;
+  --bg-card: #ffffff;
+  --border: #e2e6eb;
+  --text: #0f172a;
+  --muted: #6b7785;
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.03);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg-page);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+.brand-band {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.brand-band img { height: 36px; width: auto; display: block; }
+.brand-band .title {
+  color: var(--text); font-size: 13px; font-weight: 600;
+  letter-spacing: 0.4px; text-transform: uppercase;
+}
+.back {
+  margin-left: auto; color: var(--primary); text-decoration: none;
+  font-weight: 600; font-size: 13px;
+}
+.back:hover { text-decoration: underline; }
+
+.container { max-width: 640px; margin: 0 auto; padding: 18px 16px 40px; }
+
+.lead { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 4px 0 20px; }
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.card h2 {
+  margin: 0 0 4px; font-size: 15px; color: var(--text); font-weight: 700;
+}
+.card .sub { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+dl { margin: 0; }
+dl > div {
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+dl > div:first-child { border-top: none; }
+dt {
+  font-weight: 600; font-size: 13.5px; color: var(--text);
+}
+dt code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; color: var(--primary); background: #eef3f4;
+  padding: 1px 6px; border-radius: 6px; margin-left: 6px; font-weight: 600;
+  white-space: nowrap;
+}
+dd {
+  margin: 4px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55;
+}
+dd b { color: var(--text); font-weight: 600; }
+.note {
+  background: #f4f8f9; border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; font-size: 12.5px;
+  color: var(--muted); line-height: 1.55; margin: 4px 0 0;
+}
+.foot { color: var(--muted); font-size: 11px; margin-top: 18px; text-align: center; }
+.foot a { color: var(--primary); text-decoration: none; font-weight: 600; }
+@media (max-width: 420px) {
+  .brand-band { padding: 12px 14px; gap: 10px; }
+  .brand-band img { height: 30px; }
+  .container { padding: 14px 12px 32px; }
+  dt code { white-space: normal; }
+}
+</style>
+</head>
+<body>
+
+<div class="brand-band">
+  <img src="/logo.png" alt="SPARROW">
+  <div class="title">Settings guide</div>
+  <a class="back" href="/">&larr; Back to status</a>
+</div>
+
+<div class="container">
+  <p class="lead">
+    What each setting on this node does, and which ones you can change from the
+    <b>Settings</b> menu (the &#9776; button on the status page). Most changes take
+    effect at the next capture cycle — the node re-reads its config every loop.
+  </p>
+
+  <div class="card">
+    <h2>Transport mode</h2>
+    <p class="sub">How detections leave the node. Switchable from Settings &rarr; Transport mode.</p>
+    <dl>
+      <div>
+        <dt>Relay <code>mode = relay</code></dt>
+        <dd>For off-grid sites. Forwards JPGs (and MP3s) over the <b>XBee radio</b> to the
+        SPARROW hub, which has the backhaul. This is the default. Shown as <b>XBee</b> in the menu.</dd>
+      </div>
+      <div>
+        <dt>Direct <code>mode = direct</code></dt>
+        <dd>For connected sites. Skips the radio and <b>uploads over Wi-Fi / 4G</b> straight to the
+        SPARROW cloud. Needs an upload server and an onboarding key (see <b>Cloud upload</b> below).
+        Shown as <b>4G</b> in the menu.</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>XBee radio (relay mode)</h2>
+    <p class="sub">The long-range DigiMesh link to the hub. Re-apply the standard radio config from
+    Settings &rarr; Configure XBee.</p>
+    <dl>
+      <div>
+        <dt>Hub NI <code>xbee.master_ni</code></dt>
+        <dd>The name the node looks for when finding the hub over the air. Default
+        <b>SPARROW_MASTER</b>. This is set on the hub's radio and rarely changes.</dd>
+      </div>
+      <div>
+        <dt>Pinned hub address <code>xbee.dest64</code></dt>
+        <dd>The hub's 64-bit address the node sends to. Filled in automatically the first time the
+        node discovers the hub. <b>If the hub's XBee chip is replaced</b>, this becomes stale — use
+        <b>Settings &rarr; Rediscover hub</b> to find the new one. Leave it blank to auto-discover
+        every run.</dd>
+      </div>
+      <div>
+        <dt>Radio family <code>xbee.family</code></dt>
+        <dd><b>868</b> (XBee SX) or <b>900</b> (XBee-PRO 900HP). Both ends of a link must match. The
+        900 family skips the <code>BR</code> command during configuration (its RF rate is fixed in firmware).</dd>
+      </div>
+      <div>
+        <dt>Window &amp; chunk <code>xbee.window</code> / <code>xbee.chunk</code></dt>
+        <dd>How many chunks are in flight at once and how many bytes per chunk. Bigger = faster on a
+        clean link, but the first chunk plus the file's name/size header must stay under the radio's
+        max payload (<code>NP</code>, 256 bytes on 900HP) — keep chunk around <b>180–220</b>.</dd>
+      </div>
+      <div>
+        <dt>Port &amp; baud <code>xbee.port</code> / <code>xbee.baud</code></dt>
+        <dd>The serial device (default <code>/dev/ttyUSB0</code>) and speed (115200). If the FTDI
+        adapter re-numbers on reboot the node falls back to a <code>/dev/serial/by-id</code> path
+        automatically — prefer a by-id path here to avoid surprises.</dd>
+      </div>
+    </dl>
+    <p class="note"><b>Configure XBee</b> re-applies API mode, network ID 1234 and the routing/rate
+    settings. <b>Rediscover hub</b> only re-resolves the hub's address — use that after a hub chip swap.</p>
+  </div>
+
+  <div class="card">
+    <h2>Image capture &amp; compression</h2>
+    <p class="sub">Applied to every JPG before it's detected and sent.</p>
+    <dl>
+      <div>
+        <dt>Compression <code>image.enable_compression</code></dt>
+        <dd>Re-encode JPGs to shrink them before transmit. Strongly recommended on the radio.</dd>
+      </div>
+      <div>
+        <dt>JPEG quality <code>image.jpeg_quality</code></dt>
+        <dd>1–100. Lower = smaller files, less detail. <b>82</b> is a good balance.</dd>
+      </div>
+      <div>
+        <dt>Max dimension <code>image.max_dim</code></dt>
+        <dd>Longest edge in pixels; larger images are scaled down. <b>800</b> keeps files to tens of
+        KB — a few hundred radio chunks. Set 0 to leave images full size.</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Audio recording</h2>
+    <p class="sub">When the mic (e.g. a USB AudioMoth) records. Switchable from Settings &rarr;
+    Audio recording. Independent of the PIR/motion &mdash; that only triggers images.</p>
+    <dl>
+      <div>
+        <dt>Schedule mode <code>audio.MODE = "schedule"</code></dt>
+        <dd>Time-based (the default). Records <code>SCHEDULE.duration_seconds</code> of audio once
+        every <code>SCHEDULE.interval_minutes</code> &mdash; e.g. <b>10 s every 30 min</b>.</dd>
+      </div>
+      <div>
+        <dt>Threshold mode <code>audio.MODE = "threshold"</code></dt>
+        <dd>Sound-activated (VOX). Monitors a 1&nbsp;s sample; when its peak amplitude exceeds
+        <code>THRESHOLD</code> it records a <code>RECORD_DURATION</code>-second clip.
+        <code>THRESHOLD</code> is an int16 peak (1&ndash;32767) &mdash; <b>lower = more sensitive</b>.</dd>
+      </div>
+    </dl>
+    <p class="note">Clip length (both modes) is capped at <b>10&nbsp;s</b> &mdash; audio ships over XBee
+    as MP3, and longer clips are minutes of radio airtime. Recorded as WAV (48&nbsp;kHz mono), then
+    after the audio detector runs, bird-hit clips are encoded to MP3 at <code>encode_bitrate_kbps</code>
+    and the WAV is deleted. Set <code>enabled</code> to turn the whole pipeline off.</p>
+  </div>
+
+  <div class="card">
+    <h2>Detectors</h2>
+    <p class="sub">On-device AI that decides what's worth sending. Toggle blank-forwarding from
+    Settings &rarr; Blank frames.</p>
+    <dl>
+      <div>
+        <dt>Image detector <code>detector.*</code></dt>
+        <dd>MegaDetector (vision). <code>conf_threshold</code> is the minimum confidence to call a
+        detection (0–1). <code>keep_blanks</code> — when <b>on</b>, empty frames are still sent; when
+        <b>off</b>, they're dropped to save airtime.</dd>
+      </div>
+      <div>
+        <dt>Audio detector <code>audio_detector.*</code></dt>
+        <dd>MD Audio Birds (acoustics). Runs as a separate step so the two models never sit in RAM
+        together. Bird-hit clips become an MP3 + sidecar; the WAV is deleted. Same
+        <code>conf_threshold</code> / <code>keep_blanks</code> idea as the image detector.</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Push receivers (IP cameras)</h2>
+    <p class="sub">Let a Wi-Fi/IP camera drop stills straight onto the node — no USB needed. Point the
+    camera at the node's Wi-Fi AP (<code>10.42.0.1</code>).</p>
+    <dl>
+      <div>
+        <dt>FTP <code>ftp.*</code></dt>
+        <dd>Built-in FTP server on <b>port 21</b>. Set <code>user</code> / <code>password</code> to
+        match the camera. Uploaded JPGs land in the image folder and flow through detection like any
+        other capture. <code>enabled</code> starts it with the node.</dd>
+      </div>
+      <div>
+        <dt>Email / SMTP <code>email.*</code></dt>
+        <dd>Built-in SMTP receiver on <b>port 2525</b> for cameras that email snapshots. Images are
+        pulled out of the message and dropped into the same folder.</dd>
+      </div>
+    </dl>
+    <p class="note">The sender only transmits <b>.jpg</b> (and <b>.mp3</b>). If a camera also uploads
+    <b>.mp4</b> clips or <b>.txt</b> files they're ignored by the radio but still fill the disk — turn
+    off video upload on the camera.</p>
+  </div>
+
+  <div class="card">
+    <h2>Cloud upload (direct mode)</h2>
+    <p class="sub">Only used when Transport mode is Direct. Set from Settings &rarr; Server settings.</p>
+    <dl>
+      <div>
+        <dt>Upload server <code>server.base_url</code></dt>
+        <dd>The SPARROW server the node POSTs to (must start with <code>https://</code>).</dd>
+      </div>
+      <div>
+        <dt>Onboarding key / API key</dt>
+        <dd>Paste the onboarding key and press <b>Onboard device</b> to bind this unit, or paste an
+        API key directly. The secret is stored on disk and never shown back in the status page.</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Timing &amp; monitoring</h2>
+    <dl>
+      <div>
+        <dt>Capture cycle <code>launcher.loop_sleep_sec</code></dt>
+        <dd>Seconds between capture cycles. Default <b>1800</b> (30 min). Lower it for faster
+        turnaround (e.g. an IP camera pushing images), at the cost of more power — the radio and CPU
+        wake more often.</dd>
+      </div>
+      <div>
+        <dt>Signal poll <code>signal_monitor.interval_sec</code></dt>
+        <dd>How often the node pings the hub for the link-quality reading shown on the status page.
+        During a file transfer the radio is busy, so the page briefly shows "radio busy" — that's
+        normal.</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="foot">
+    <a href="/">&larr; Back to status</a>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+[Unit]
+Description=Robin Services Launcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/sparrow/robin
+ExecStart=/home/sparrow/robin/.venv/bin/python -u /home/sparrow/robin/run_robin.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

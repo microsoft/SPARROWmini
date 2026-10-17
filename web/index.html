@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Robin · SPARROW</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<div class="brand-band">
+  <img src="/logo.png" alt="SPARROW">
+  <div class="right">
+    <div class="title">Robin client node</div>
+    <div class="dev" id="dev"></div>
+  </div>
+  <button class="burger" id="burgerBtn" type="button" aria-label="Open menu" aria-controls="drawer" aria-expanded="false">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+</div>
+
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Settings">
+  <div class="drawer-head">
+    <h2>Settings</h2>
+    <button class="drawer-close" id="drawerClose" type="button" aria-label="Close menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="6" y1="6" x2="18" y2="18"/>
+        <line x1="6" y1="18" x2="18" y2="6"/>
+      </svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <div class="drawer-section">
+      <h3>Configure XBee</h3>
+      <p class="drawer-help">Re-applies the documented client-node radio config. The link will drop briefly while this runs; the page will re-poll once it returns.</p>
+      <pre class="drawer-cmd">python transport/xbee_configure.py \
+  --port /dev/ttyUSB0 --baud 115200 \
+  --api 1 --rf 1 --router 0 --netid 1234</pre>
+      <button class="btn" id="xbeeConfigureBtn" type="button">Run</button>
+      <pre class="drawer-output" id="xbeeConfigureOutput" hidden></pre>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Rediscover hub</h3>
+      <p class="drawer-help">Use this if the SPARROW hub's XBee has been replaced with a new chip. The node forgets the saved hub address, finds <b>SPARROW_MASTER</b> again over the air, and pins the new one. Takes ~10–15s; the link drops briefly.</p>
+      <div class="kv" id="hubKv" style="margin-bottom: 12px;"></div>
+      <button class="btn" id="rediscoverBtn" type="button">Rediscover</button>
+      <pre class="drawer-output" id="rediscoverOutput" hidden></pre>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Transport mode</h3>
+      <p class="drawer-help">
+        <b>Relay</b> forwards JPGs over XBee to the SPARROW hub.
+        <b>Direct</b> uploads straight to the cloud, no radio.
+        The launcher picks up the change at the next cycle.
+      </p>
+      <div class="kv" id="modeKv" style="margin-bottom: 12px;"></div>
+      <div class="btn-row">
+        <button class="btn" id="modeRelayBtn"  type="button" data-mode="relay">XBee</button>
+        <button class="btn" id="modeDirectBtn" type="button" data-mode="direct">4G</button>
+      </div>
+      <pre class="drawer-output" id="modeOutput" hidden></pre>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Blank frames</h3>
+      <p class="drawer-help">
+        Whether captures with <b>no detections</b> are sent. <b>ON</b> = send everything.
+        <b>OFF</b> = blanks are dropped on the node (saves airtime; trusts the on-device
+        detector). The detector picks up the change at the next cycle.
+      </p>
+      <div class="btn-row">
+        <button class="btn" id="blankImgBtn"   type="button">Images: —</button>
+        <button class="btn" id="blankAudioBtn" type="button">Audio: —</button>
+      </div>
+      <pre class="drawer-output" id="blanksOutput" hidden></pre>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Audio recording</h3>
+      <p class="drawer-help">
+        How the mic (e.g. USB AudioMoth) decides when to record.
+        <b>Schedule</b> records a fixed clip every N minutes.
+        <b>Threshold</b> records only when sound peaks above a level (VOX).
+        The audio service picks up the change at its next cycle.
+      </p>
+      <div class="kv" id="audRecKv" style="margin-bottom: 12px;"></div>
+      <div class="btn-row">
+        <button class="btn" id="audModeScheduleBtn"  type="button" data-audmode="schedule">Schedule</button>
+        <button class="btn" id="audModeThresholdBtn" type="button" data-audmode="threshold">Threshold</button>
+      </div>
+
+      <div id="audScheduleFields">
+        <div class="field">
+          <label for="audInterval">Interval (minutes)</label>
+          <input id="audInterval" type="number" min="1" max="1440" step="1" inputmode="numeric" autocomplete="off">
+          <div class="hint">Record once every N minutes. <code>audio.SCHEDULE.interval_minutes</code></div>
+        </div>
+        <div class="field">
+          <label for="audDuration">Clip length (seconds)</label>
+          <input id="audDuration" type="number" min="1" max="10" step="1" inputmode="numeric" autocomplete="off">
+          <div class="hint">Max 10 s — clips ship over XBee. <code>audio.SCHEDULE.duration_seconds</code></div>
+        </div>
+      </div>
+
+      <div id="audThresholdFields">
+        <div class="field">
+          <label for="audThreshold">Sensitivity (peak amplitude)</label>
+          <input id="audThreshold" type="number" min="1" max="32767" step="1" inputmode="numeric" autocomplete="off">
+          <div class="hint">Lower = more sensitive. Records when a 1 s sample peaks above this. Range 1–32767. <code>audio.THRESHOLD</code></div>
+        </div>
+        <div class="field">
+          <label for="audRecordDuration">Clip length (seconds)</label>
+          <input id="audRecordDuration" type="number" min="1" max="10" step="1" inputmode="numeric" autocomplete="off">
+          <div class="hint">Max 10 s — clips ship over XBee. <code>audio.RECORD_DURATION</code></div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="audSaveBtn" type="button">Save audio settings</button>
+      </div>
+      <pre class="drawer-output" id="audRecOutput" hidden></pre>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Server &amp; Onboarding</h3>
+      <p class="drawer-help">
+        Pair this node with the SPARROW cloud. The API key is one-shot: first
+        successful onboarding consumes it and binds it to this device's unit ID.
+      </p>
+
+      <div class="kv" id="onboardKv" style="margin-bottom: 14px;"></div>
+
+      <div class="field">
+        <label for="srvBaseUrl">Endpoint base URL</label>
+        <input id="srvBaseUrl" type="text" placeholder="https://server.sparrow-earth.com" autocomplete="off">
+        <div class="hint">Stored in <code>config.server.base_url</code>. Must include scheme.</div>
+      </div>
+
+      <div class="field">
+        <label for="srvApiKey">API Key</label>
+        <input id="srvApiKey" type="password" placeholder="(leave blank to keep existing)" autocomplete="off">
+        <div class="hint">Written to <code>access_key.txt</code> (mode 600). Never echoed back.</div>
+      </div>
+
+      <div class="field">
+        <label for="srvEmail">Email (onboarding only)</label>
+        <input id="srvEmail" type="email" placeholder="you@example.com" autocomplete="off">
+        <div class="hint">Must match the email on the onboarding key. Not stored on the node.</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="srvSaveBtn" type="button">Save settings</button>
+        <button class="btn" id="srvOnboardBtn" type="button">Onboard device</button>
+      </div>
+
+      <pre class="drawer-output" id="srvOutput" hidden></pre>
+    </div>
+  </div>
+</aside>
+
+<div class="container">
+
+  <div class="banner" id="banner">Disconnected from node — retrying…</div>
+
+  <div class="card" id="linkCard" hidden>
+    <h2>XBee link <span class="badge unknown" id="state">unknown</span></h2>
+    <div>
+      <span class="dbm" id="dbm">--</span><span class="dbm-unit">dBm</span>
+    </div>
+    <div class="bars" id="bars"></div>
+    <div class="age" id="age"></div>
+  </div>
+
+  <div class="card" id="uploadCard" hidden>
+    <h2>Cloud upload <span class="badge unknown" id="uploadState">unknown</span></h2>
+    <div class="kv" id="uploadKv"></div>
+    <div class="age" id="uploadAge"></div>
+  </div>
+
+  <div class="card">
+    <h2>Backlog</h2>
+    <div class="big"><span id="backlog">--</span><span class="unit">JPG(s) waiting to send</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Detector <span class="badge unknown" id="detState">off</span></h2>
+    <div class="kv" id="detKv"></div>
+    <div class="age" id="detRun"></div>
+  </div>
+
+  <div class="card">
+    <h2>Audio detector <span class="badge unknown" id="audState">off</span></h2>
+    <div class="kv" id="audKv"></div>
+    <div class="age" id="audRun"></div>
+  </div>
+
+  <div class="card">
+    <h2>Push receivers</h2>
+    <div class="kv" id="rcvKv"></div>
+  </div>
+
+  <div class="card">
+    <h2>Config</h2>
+    <div class="kv" id="cfg"></div>
+  </div>
+
+  <div class="foot">refreshes every 5s · <span id="now"></span> · <a href="/help">Settings guide</a></div>
+
+</div>
+
+<script>
+const BARS = 5;
+const barsEl = document.getElementById('bars');
+for (let i = 0; i < BARS; i++) {
+  const d = document.createElement('div');
+  d.className = 'bar';
+  d.style.height = (12 + i * 6) + 'px';
+  barsEl.appendChild(d);
+}
+
+function rssiToBars(dbm) {
+  if (dbm == null) return 0;
+  if (dbm >= -60) return 5;
+  if (dbm >= -70) return 4;
+  if (dbm >= -80) return 3;
+  if (dbm >= -90) return 2;
+  return 1;
+}
+
+function flat(obj, prefix) {
+  const out = [];
+  for (const k of Object.keys(obj || {})) {
+    const v = obj[k];
+    const key = prefix ? prefix + '.' + k : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      out.push(...flat(v, key));
+    } else {
+      out.push([key, v]);
+    }
+  }
+  return out;
+}
+
+function humanSeconds(s) {
+  if (typeof s !== 'number' || isNaN(s)) return null;
+  if (s < 60) return s + ' s';
+  if (s < 3600) {
+    const m = s / 60;
+    return (Number.isInteger(m) ? m : m.toFixed(1)) + ' min';
+  }
+  if (s < 86400) {
+    const h = s / 3600;
+    return (Number.isInteger(h) ? h : h.toFixed(1)) + ' h';
+  }
+  const d = s / 86400;
+  return (Number.isInteger(d) ? d : d.toFixed(1)) + ' d';
+}
+
+function formatValue(key, v) {
+  if (v === null || v === '') return '—';
+  if (key.endsWith('_sec') && typeof v === 'number') {
+    const h = humanSeconds(v);
+    if (h && v >= 60) return h + ' (' + v + ' s)';
+    return h || String(v);
+  }
+  if (typeof v === 'boolean') return v ? 'yes' : 'no';
+  return String(v);
+}
+
+const LABELS = {
+  'mode':                            'Mode',
+  'capture_mode':                    'Capture mode',
+  'image.enable_compression':        'JPEG compression',
+  'image.jpeg_quality':              'JPEG quality',
+  'image.max_dim':                   'Max image dimension',
+  'xbee.master_ni':                  'Hub XBee NI',
+  'xbee.dest64':                     'Hub 64-bit address',
+  'xbee.window':                     'XBee window (chunks in flight)',
+  'xbee.chunk':                      'XBee chunk size (bytes)',
+  'server.base_url':                 'Upload server',
+  'server.image_endpoint_path':      'Image endpoint',
+  'launcher.loop_sleep_sec':         'Capture cycle',
+  'signal_monitor.interval_sec':     'Signal poll interval',
+};
+
+function formatKey(key) {
+  return LABELS[key] || key;
+}
+
+async function tick() {
+  let data;
+  try {
+    const r = await fetch('/api/status', { cache: 'no-store' });
+    if (!r.ok) throw new Error('http ' + r.status);
+    data = await r.json();
+  } catch (e) {
+    document.getElementById('banner').classList.add('show');
+    return;
+  }
+  document.getElementById('banner').classList.remove('show');
+
+  document.getElementById('dev').textContent = data.device_id || '';
+
+  const mode = data.mode || 'relay';
+  const linkCard = document.getElementById('linkCard');
+  const uploadCard = document.getElementById('uploadCard');
+
+  if (mode === 'direct') {
+    linkCard.hidden = true;
+    uploadCard.hidden = false;
+
+    const up = data.upload || {};
+    const upBadge = document.getElementById('uploadState');
+    let upState = 'unknown';
+    if (up.online === true) upState = 'ok';
+    else if (up.online === false) upState = 'lost';
+    upBadge.textContent = upState;
+    upBadge.className = 'badge ' + upState;
+
+    const upKv = document.getElementById('uploadKv');
+    upKv.innerHTML = '';
+    const fmtTs = (t) => t
+      ? new Date(t * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
+      : '—';
+    const rows = [
+      ['Endpoint',     up.endpoint || '—'],
+      ['Metrics',      up.metrics_endpoint || '—'],
+      ['Last success', fmtTs(up.last_success_at)],
+      ['Last metrics', fmtTs(up.last_metrics_at)],
+    ];
+    for (const [k, v] of rows) {
+      const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+      const vd = document.createElement('div'); vd.className = 'v'; vd.textContent = v;
+      upKv.appendChild(kd); upKv.appendChild(vd);
+    }
+
+    const lr = up.last_run;
+    const parts = [];
+    if (lr) {
+      parts.push(`${lr.uploaded} uploaded`);
+      if (lr.discarded) parts.push(`${lr.discarded} discarded`);
+      if (lr.failed)    parts.push(`${lr.failed} failed`);
+      if (lr.skipped)   parts.push(`${lr.skipped} skipped`);
+      parts.push(`${lr.duration_sec}s`);
+    }
+    if (up.error) parts.push(up.error);
+    document.getElementById('uploadAge').textContent =
+      parts.length ? 'last cycle: ' + parts.join(' · ') : '';
+  } else {
+    linkCard.hidden = false;
+    uploadCard.hidden = true;
+
+    const link = data.link || {};
+    const state = link.state || 'unknown';
+    const badge = document.getElementById('state');
+    badge.textContent = state;
+    badge.className = 'badge ' + state;
+
+    document.getElementById('dbm').textContent =
+      link.rssi_dbm != null ? link.rssi_dbm : '--';
+
+    const noteParts = [];
+    if (link.age_sec != null) noteParts.push('last reply ' + link.age_sec + 's ago');
+    if (link.note) noteParts.push(link.note);
+    document.getElementById('age').textContent = noteParts.join(' — ');
+
+    const cls = state === 'stale' ? 'warn' : '';
+    const showBars = state === 'ok' || state === 'stale';
+    const bars = rssiToBars(link.rssi_dbm);
+    for (let i = 0; i < BARS; i++) {
+      let c = 'bar';
+      if (cls) c += ' ' + cls;
+      if (showBars && i < bars) c += ' lit';
+      barsEl.children[i].className = c;
+    }
+  }
+
+  document.getElementById('backlog').textContent =
+    (data.backlog && data.backlog.count != null) ? data.backlog.count : '--';
+
+  // ----- detector -----
+  const det = data.detector || {};
+  const detBadge = document.getElementById('detState');
+  const detKv = document.getElementById('detKv');
+  const detRun = document.getElementById('detRun');
+
+  if (det.enabled) {
+    detBadge.textContent = 'on';
+    detBadge.className = 'badge ok';
+  } else {
+    detBadge.textContent = 'off';
+    detBadge.className = 'badge unknown';
+  }
+
+  detKv.innerHTML = '';
+  const detRows = [
+    ['Model', det.model || '—'],
+    ['Classes', (det.labels && det.labels.length) ? det.labels.join(', ') : '—'],
+    ['Send blanks', det.keep_blanks ? 'yes' : 'no'],
+    ['Confidence', (det.conf_threshold != null) ? det.conf_threshold : '—'],
+    ['Input size', (det.input_size != null) ? (det.input_size + ' px') : '—'],
+  ];
+  for (const [k, v] of detRows) {
+    const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+    const vd = document.createElement('div'); vd.className = 'v'; vd.textContent = v;
+    detKv.appendChild(kd); detKv.appendChild(vd);
+  }
+
+  const lr = det.last_run;
+  if (lr) {
+    const parts = [
+      `${lr.processed} processed`,
+      `${lr.with_detections} with detections`,
+    ];
+    if (lr.blanks_dropped) parts.push(`${lr.blanks_dropped} dropped`);
+    if (lr.blanks_kept)    parts.push(`${lr.blanks_kept} blanks kept`);
+    if (lr.errors)         parts.push(`${lr.errors} errors`);
+    parts.push(`${lr.duration_sec}s`);
+    detRun.textContent = 'last cycle: ' + parts.join(' · ');
+  } else if (det.enabled) {
+    detRun.textContent = 'awaiting first cycle';
+  } else {
+    detRun.textContent = '';
+  }
+
+  // ----- audio detector -----
+  const aud = data.audio_detector || {};
+  const audBadge = document.getElementById('audState');
+  const audKv = document.getElementById('audKv');
+  const audRun = document.getElementById('audRun');
+
+  if (aud.enabled) {
+    audBadge.textContent = 'on';
+    audBadge.className = 'badge ok';
+  } else {
+    audBadge.textContent = 'off';
+    audBadge.className = 'badge unknown';
+  }
+
+  audKv.innerHTML = '';
+  const audRows = [
+    ['Model', aud.model || '—'],
+    ['Classes', (aud.labels && aud.labels.length) ? aud.labels.join(', ') : '—'],
+    ['Send blanks', aud.keep_blanks ? 'yes' : 'no'],
+    ['Confidence', (aud.conf_threshold != null) ? aud.conf_threshold : '—'],
+    ['Window', (aud.window_sec != null) ? (aud.window_sec + ' s') : '—'],
+    ['Sample rate', (aud.sample_rate != null) ? (aud.sample_rate + ' Hz') : '—'],
+  ];
+  for (const [k, v] of audRows) {
+    const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+    const vd = document.createElement('div'); vd.className = 'v'; vd.textContent = v;
+    audKv.appendChild(kd); audKv.appendChild(vd);
+  }
+
+  const alr = aud.last_run;
+  if (alr) {
+    const parts = [
+      `${alr.processed} processed`,
+      `${alr.with_detections} with detections`,
+    ];
+    if (alr.blanks_dropped)      parts.push(`${alr.blanks_dropped} dropped`);
+    if (alr.blanks_kept)         parts.push(`${alr.blanks_kept} blanks kept`);
+    if (alr.bird_windows_total)  parts.push(`${alr.bird_windows_total} bird windows`);
+    if (alr.errors)              parts.push(`${alr.errors} errors`);
+    parts.push(`${alr.duration_sec}s`);
+    audRun.textContent = 'last cycle: ' + parts.join(' · ');
+  } else if (aud.enabled) {
+    audRun.textContent = 'awaiting first cycle';
+  } else {
+    audRun.textContent = '';
+  }
+
+  // ----- push receivers (FTP / SMTP) -----
+  const rcv = data.receivers || {};
+  const rcvKv = document.getElementById('rcvKv');
+  if (rcvKv) {
+    rcvKv.innerHTML = '';
+    const rcvRows = [
+      ['FTP (IP camera)', rcv.ftp_enabled ? ('on · port ' + rcv.ftp_port) : 'off'],
+      ['SMTP (email)',    rcv.email_enabled ? ('on · port ' + rcv.email_port) : 'off'],
+    ];
+    for (const [k, v] of rcvRows) {
+      const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+      const vd = document.createElement('div'); vd.className = 'v'; vd.textContent = v;
+      rcvKv.appendChild(kd); rcvKv.appendChild(vd);
+    }
+  }
+
+  const cfgEl = document.getElementById('cfg');
+  cfgEl.innerHTML = '';
+  for (const [k, v] of flat(data.config || {})) {
+    const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = formatKey(k); kd.title = k;
+    const vd = document.createElement('div'); vd.className = 'v'; vd.textContent = formatValue(k, v);
+    cfgEl.appendChild(kd); cfgEl.appendChild(vd);
+  }
+
+  // ----- rediscover-hub drawer state (current hub NI + pinned address) -----
+  const xbeeCfg = (data.config && data.config.xbee) || {};
+  const hubKv = document.getElementById('hubKv');
+  if (hubKv) {
+    hubKv.innerHTML = '';
+    const rows = [
+      ['Hub NI',    xbeeCfg.master_ni || 'SPARROW_MASTER'],
+      ['Pinned to', xbeeCfg.dest64 ? xbeeCfg.dest64 : '(none — auto-discovers)'],
+    ];
+    for (const [k, v] of rows) {
+      const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+      const vd = document.createElement('div'); vd.className = 'v'; vd.textContent = v;
+      hubKv.appendChild(kd); hubKv.appendChild(vd);
+    }
+  }
+
+  const t = new Date((data.now || Date.now() / 1000) * 1000);
+  document.getElementById('now').textContent =
+    t.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+
+  // ----- transport-mode drawer state -----
+  const modeKv = document.getElementById('modeKv');
+  const modeRelayBtn  = document.getElementById('modeRelayBtn');
+  const modeDirectBtn = document.getElementById('modeDirectBtn');
+  modeKv.innerHTML = '';
+  const modePill = '<span class="pill ' + (mode === 'direct' ? 'on' : 'off') + '">' +
+                   mode + '</span>';
+  const modeRows = [
+    ['Current', modePill, true],
+    ['Transport', mode === 'direct' ? 'HTTPS → cloud' : 'XBee → hub', false],
+  ];
+  for (const [k, v, isHtml] of modeRows) {
+    const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+    const vd = document.createElement('div'); vd.className = 'v';
+    if (isHtml) vd.innerHTML = v; else vd.textContent = v;
+    modeKv.appendChild(kd); modeKv.appendChild(vd);
+  }
+  // Disable whichever button matches the current mode; the inactive one is the CTA.
+  modeRelayBtn.disabled  = (mode === 'relay');
+  modeDirectBtn.disabled = (mode === 'direct');
+
+  // ----- blank-frames drawer state -----
+  const imgBlanks = !!(data.detector || {}).keep_blanks;
+  const audBlanks = !!(data.audio_detector || {}).keep_blanks;
+  curKeepBlanks.image = imgBlanks;
+  curKeepBlanks.audio = audBlanks;
+  const blankImgBtn = document.getElementById('blankImgBtn');
+  const blankAudioBtn = document.getElementById('blankAudioBtn');
+  if (blankImgBtn)   blankImgBtn.textContent   = 'Images: ' + (imgBlanks ? 'ON (sending)' : 'OFF (dropping)');
+  if (blankAudioBtn) blankAudioBtn.textContent = 'Audio: '  + (audBlanks ? 'ON (sending)' : 'OFF (dropping)');
+
+  // ----- audio-recording drawer state -----
+  const audioRec = data.audio || {};
+  const audRecKv = document.getElementById('audRecKv');
+  if (audRecKv) {
+    audRecKv.innerHTML = '';
+    const m = audioRec.mode || 'schedule';
+    const trig = (m === 'threshold')
+      ? ('sound peak > ' + (audioRec.threshold != null ? audioRec.threshold : '—') +
+         ' → ' + (audioRec.record_duration_sec != null ? audioRec.record_duration_sec : '—') + 's clip')
+      : ((audioRec.duration_seconds != null ? audioRec.duration_seconds : '—') + 's every ' +
+         (audioRec.interval_minutes != null ? audioRec.interval_minutes : '—') + ' min');
+    const recPill = '<span class="pill ' + (audioRec.enabled ? 'on' : 'off') + '">' +
+                    (audioRec.enabled ? 'on' : 'off') + '</span>';
+    const rows = [
+      ['Recording', recPill, true],
+      ['Mode',      m, false],
+      ['Trigger',   trig, false],
+    ];
+    for (const [k, v, isHtml] of rows) {
+      const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+      const vd = document.createElement('div'); vd.className = 'v';
+      if (isHtml) vd.innerHTML = v; else vd.textContent = v;
+      audRecKv.appendChild(kd); audRecKv.appendChild(vd);
+    }
+    // Don't clobber the operator mid-edit: only sync the form from the server
+    // when there are no unsaved local changes.
+    if (!audDirty) {
+      selectedAudMode = m;
+      applyAudMode(m);
+      const setIf = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && document.activeElement !== el && val != null) el.value = val;
+      };
+      setIf('audInterval', audioRec.interval_minutes);
+      setIf('audDuration', audioRec.duration_seconds);
+      setIf('audThreshold', audioRec.threshold);
+      setIf('audRecordDuration', audioRec.record_duration_sec);
+    }
+  }
+
+  // ----- onboarding drawer state -----
+  const ob = data.onboarding || {};
+  const obKv = document.getElementById('onboardKv');
+  obKv.innerHTML = '';
+  const statusPill = ob.is_onboarded
+    ? '<span class="pill on">onboarded</span>'
+    : '<span class="pill off">not onboarded</span>';
+  const keyPill = ob.has_key
+    ? '<span class="pill on">set</span>'
+    : '<span class="pill off">missing</span>';
+  const onboardedAt = ob.onboarded && ob.onboarded.onboarded_at
+    ? new Date(ob.onboarded.onboarded_at * 1000).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
+    : null;
+  const obRows = [
+    ['Status',     statusPill, true],
+    ['Endpoint',   ob.base_url || '—', false],
+    ['Unit ID',    (ob.unit_id || '—') + ' (' + (ob.unit_id_source || '—') + ')', false],
+    ['API key',    keyPill, true],
+  ];
+  if (ob.is_onboarded && ob.onboarded) {
+    obRows.push(['Project',   String(ob.onboarded.project_id ?? '—'), false]);
+    obRows.push(['Device ID', String(ob.onboarded.device_id ?? '—'), false]);
+    if (onboardedAt) obRows.push(['Onboarded at', onboardedAt, false]);
+  }
+  for (const [k, v, isHtml] of obRows) {
+    const kd = document.createElement('div'); kd.className = 'k'; kd.textContent = k;
+    const vd = document.createElement('div'); vd.className = 'v';
+    if (isHtml) vd.innerHTML = v; else vd.textContent = v;
+    obKv.appendChild(kd); obKv.appendChild(vd);
+  }
+
+  // Prefill the endpoint input on first tick — but only if the user hasn't
+  // started typing, so we don't clobber an in-flight edit on every 5s poll.
+  const baseUrlInput = document.getElementById('srvBaseUrl');
+  if (!baseUrlInput.dataset.touched && !baseUrlInput.value) {
+    baseUrlInput.value = ob.base_url || '';
+  }
+}
+
+tick();
+setInterval(tick, 5000);
+
+// ----- drawer -----
+const burgerBtn = document.getElementById('burgerBtn');
+const drawer = document.getElementById('drawer');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+const drawerClose = document.getElementById('drawerClose');
+
+function openDrawer() {
+  drawer.classList.add('open');
+  drawerBackdrop.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  burgerBtn.setAttribute('aria-expanded', 'true');
+}
+function closeDrawer() {
+  drawer.classList.remove('open');
+  drawerBackdrop.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+  burgerBtn.setAttribute('aria-expanded', 'false');
+}
+
+burgerBtn.addEventListener('click', openDrawer);
+drawerBackdrop.addEventListener('click', closeDrawer);
+drawerClose.addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+// ----- configure XBee action -----
+const xbeeBtn = document.getElementById('xbeeConfigureBtn');
+const xbeeOut = document.getElementById('xbeeConfigureOutput');
+
+xbeeBtn.addEventListener('click', async () => {
+  if (!confirm('Reconfigure the XBee radio? The link will drop briefly.')) return;
+  const orig = xbeeBtn.textContent;
+  xbeeBtn.disabled = true;
+  xbeeBtn.textContent = 'Running…';
+  xbeeOut.hidden = false;
+  xbeeOut.textContent = '… running configure (may take ~30s) …';
+  try {
+    const r = await fetch('/api/actions/configure_xbee', { method: 'POST' });
+    const data = await r.json();
+    let header;
+    if (data.locked) {
+      header = '⚠ Radio busy — could not acquire lock\n';
+    } else if (data.ok) {
+      header = '✓ exit ' + data.exit_code + '\n';
+    } else {
+      header = '✗ exit ' + data.exit_code + '\n';
+    }
+    xbeeOut.textContent = header + '\n' + (data.output || '(no output)');
+  } catch (e) {
+    xbeeOut.textContent = 'Request failed: ' + (e && e.message ? e.message : e);
+  } finally {
+    xbeeBtn.disabled = false;
+    xbeeBtn.textContent = orig;
+  }
+});
+
+// ----- rediscover hub action -----
+const rediscoverBtn = document.getElementById('rediscoverBtn');
+const rediscoverOut = document.getElementById('rediscoverOutput');
+
+rediscoverBtn.addEventListener('click', async () => {
+  if (!confirm('Rediscover the SPARROW hub?\n\nUse this only if the hub\'s XBee chip was replaced. The node drops its saved hub address and finds the hub again over the air. The link will pause briefly.')) return;
+  const orig = rediscoverBtn.textContent;
+  rediscoverBtn.disabled = true;
+  rediscoverBtn.textContent = 'Searching…';
+  rediscoverOut.hidden = false;
+  rediscoverOut.textContent = '… discovering the hub (may take ~15s) …';
+  try {
+    const r = await fetch('/api/actions/rediscover_master', { method: 'POST' });
+    const data = await r.json();
+    let header;
+    if (data.locked) {
+      header = '⚠ Radio busy — could not acquire lock. Try again in a moment.\n';
+    } else if (data.ok) {
+      header = '✓ Hub found — pinned to ' + (data.dest64 || '(unknown)') + '\n';
+    } else {
+      header = '✗ Could not find the hub (exit ' + data.exit_code + '). Is it powered and in range?\n';
+    }
+    rediscoverOut.textContent = header + '\n' + (data.output || '(no output)');
+    tick();
+  } catch (e) {
+    rediscoverOut.textContent = 'Request failed: ' + (e && e.message ? e.message : e);
+  } finally {
+    rediscoverBtn.disabled = false;
+    rediscoverBtn.textContent = orig;
+  }
+});
+
+// ----- server settings + onboarding -----
+const srvBaseUrl   = document.getElementById('srvBaseUrl');
+const srvApiKey    = document.getElementById('srvApiKey');
+const srvEmail     = document.getElementById('srvEmail');
+const srvSaveBtn   = document.getElementById('srvSaveBtn');
+const srvOnboardBtn = document.getElementById('srvOnboardBtn');
+const srvOutput    = document.getElementById('srvOutput');
+
+srvBaseUrl.addEventListener('input', () => { srvBaseUrl.dataset.touched = '1'; });
+
+function showSrvOutput(header, body) {
+  srvOutput.hidden = false;
+  srvOutput.textContent = header + (body ? '\n\n' + body : '');
+}
+
+async function postJson(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* keep empty */ }
+  return { status: r.status, data };
+}
+
+srvSaveBtn.addEventListener('click', async () => {
+  const baseUrl = srvBaseUrl.value.trim();
+  const apiKey  = srvApiKey.value;
+  if (!baseUrl && !apiKey) {
+    showSrvOutput('Nothing to save — set the endpoint or paste an API key.');
+    return;
+  }
+  const orig = srvSaveBtn.textContent;
+  srvSaveBtn.disabled = true;
+  srvOnboardBtn.disabled = true;
+  srvSaveBtn.textContent = 'Saving…';
+  try {
+    const body = {};
+    if (baseUrl) body.base_url = baseUrl;
+    if (apiKey)  body.api_key  = apiKey;
+    const { status, data } = await postJson('/api/actions/save_server_settings', body);
+    if (data.ok) {
+      showSrvOutput('✓ Saved.',
+        'base_url: ' + (data.base_url || '(unchanged)') + '\n' +
+        'unit_id : ' + (data.unit_id || '(default — from device_id.txt)') + '\n' +
+        'api key : ' + (data.has_key ? 'on disk' : 'not set'));
+      srvApiKey.value = '';            // don't leave the secret in the DOM
+      srvBaseUrl.dataset.touched = ''; // let next /api/status repaint
+      tick();
+    } else {
+      showSrvOutput('✗ HTTP ' + status, data.error || JSON.stringify(data));
+    }
+  } catch (e) {
+    showSrvOutput('Request failed: ' + (e && e.message ? e.message : e));
+  } finally {
+    srvSaveBtn.disabled = false;
+    srvOnboardBtn.disabled = false;
+    srvSaveBtn.textContent = orig;
+  }
+});
+
+// ----- transport-mode toggle -----
+const modeOutput = document.getElementById('modeOutput');
+async function flipMode(target) {
+  const human = target === 'direct' ? 'Direct (HTTPS to cloud)' : 'Relay (XBee to hub)';
+  if (!confirm(
+    'Switch transport to ' + human + '?\n\n' +
+    'The launcher will pick this up at the next cycle (within the configured ' +
+    'loop_sleep_sec). XBee backlog will pause draining if you flip to Direct ' +
+    'without internet — and vice versa. OK to proceed?'
+  )) return;
+
+  const btnRelay  = document.getElementById('modeRelayBtn');
+  const btnDirect = document.getElementById('modeDirectBtn');
+  btnRelay.disabled = true; btnDirect.disabled = true;
+  modeOutput.hidden = false;
+  modeOutput.textContent = '… saving mode = ' + target + ' …';
+  try {
+    const { status, data } = await postJson('/api/actions/set_mode', { mode: target });
+    if (data.ok) {
+      const wait = data.loop_sleep_sec ? (data.loop_sleep_sec + 's') : 'next cycle';
+      modeOutput.textContent =
+        '✓ Mode set: ' + (data.previous || '?') + ' → ' + data.mode + '\n' +
+        'Takes effect: ' + wait + '. The web UI will reflect the change once the cycle flips.';
+      tick();
+    } else {
+      modeOutput.textContent = '✗ HTTP ' + status + '\n\n' + (data.error || JSON.stringify(data));
+    }
+  } catch (e) {
+    modeOutput.textContent = 'Request failed: ' + (e && e.message ? e.message : e);
+  } finally {
+    // tick() will re-disable the active mode's button.
+  }
+}
+document.getElementById('modeRelayBtn').addEventListener('click',  () => flipMode('relay'));
+document.getElementById('modeDirectBtn').addEventListener('click', () => flipMode('direct'));
+
+// ----- blank-frames toggles -----
+const blanksOutput = document.getElementById('blanksOutput');
+const curKeepBlanks = { image: null, audio: null };  // repainted from /api/status
+async function flipBlanks(target) {
+  const next = !curKeepBlanks[target];
+  const btn = document.getElementById(target === 'image' ? 'blankImgBtn' : 'blankAudioBtn');
+  btn.disabled = true;
+  blanksOutput.hidden = false;
+  blanksOutput.textContent = '… setting ' + target + ' blanks = ' + (next ? 'ON' : 'OFF') + ' …';
+  try {
+    const { status, data } = await postJson('/api/actions/set_keep_blanks', { target, keep_blanks: next });
+    if (data.ok) {
+      const wait = data.loop_sleep_sec ? (data.loop_sleep_sec + 's') : 'next cycle';
+      blanksOutput.textContent =
+        '✓ ' + target + ' blanks: ' + (data.previous ? 'ON' : 'OFF') + ' → ' +
+        (data.keep_blanks ? 'ON' : 'OFF') + '\nTakes effect: ' + wait + '.';
+      tick();
+    } else {
+      blanksOutput.textContent = '✗ HTTP ' + status + '\n\n' + (data.error || JSON.stringify(data));
+    }
+  } catch (e) {
+    blanksOutput.textContent = 'Request failed: ' + (e && e.message ? e.message : e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById('blankImgBtn').addEventListener('click',   () => flipBlanks('image'));
+document.getElementById('blankAudioBtn').addEventListener('click', () => flipBlanks('audio'));
+
+// ----- audio recording controls -----
+const audRecOutput = document.getElementById('audRecOutput');
+let selectedAudMode = 'schedule';
+let audDirty = false;  // set on any local edit; cleared after a successful save
+
+function applyAudMode(mode) {
+  const schedBtn    = document.getElementById('audModeScheduleBtn');
+  const threshBtn   = document.getElementById('audModeThresholdBtn');
+  const schedFields = document.getElementById('audScheduleFields');
+  const threshFields = document.getElementById('audThresholdFields');
+  if (schedBtn)     schedBtn.disabled    = (mode === 'schedule');
+  if (threshBtn)    threshBtn.disabled   = (mode === 'threshold');
+  if (schedFields)  schedFields.style.display  = (mode === 'schedule')  ? '' : 'none';
+  if (threshFields) threshFields.style.display = (mode === 'threshold') ? '' : 'none';
+}
+
+function pickAudMode(mode) {
+  selectedAudMode = mode;
+  audDirty = true;
+  applyAudMode(mode);
+}
+document.getElementById('audModeScheduleBtn').addEventListener('click',  () => pickAudMode('schedule'));
+document.getElementById('audModeThresholdBtn').addEventListener('click', () => pickAudMode('threshold'));
+for (const id of ['audInterval', 'audDuration', 'audThreshold', 'audRecordDuration']) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => { audDirty = true; });
+}
+
+async function saveAudioSettings() {
+  const btn = document.getElementById('audSaveBtn');
+  const numOrNull = (id) => {
+    const el = document.getElementById(id);
+    if (!el || el.value === '') return null;
+    const n = parseInt(el.value, 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  const body = { MODE: selectedAudMode };
+  const iv = numOrNull('audInterval');
+  const du = numOrNull('audDuration');
+  const th = numOrNull('audThreshold');
+  const rd = numOrNull('audRecordDuration');
+  if (iv != null) body.interval_minutes = iv;
+  if (du != null) body.duration_seconds = du;
+  if (th != null) body.THRESHOLD = th;
+  if (rd != null) body.RECORD_DURATION = rd;
+
+  btn.disabled = true;
+  audRecOutput.hidden = false;
+  audRecOutput.textContent = '… saving audio settings …';
+  try {
+    const { status, data } = await postJson('/api/actions/set_audio', body);
+    if (status === 200 && data.ok) {
+      const a = data.audio || {};
+      const wait = data.loop_sleep_sec ? (data.loop_sleep_sec + 's') : 'next cycle';
+      audRecOutput.textContent =
+        '✓ Saved · mode=' + a.MODE +
+        '\n   schedule: ' + a.duration_seconds + 's every ' + a.interval_minutes + ' min' +
+        '\n   threshold: > ' + a.THRESHOLD + ' → ' + a.RECORD_DURATION + 's clip' +
+        '\nTakes effect: ' + wait + '.';
+      audDirty = false;
+      tick();
+    } else {
+      audRecOutput.textContent = '✗ HTTP ' + status + '\n\n' + (data.error || JSON.stringify(data));
+    }
+  } catch (e) {
+    audRecOutput.textContent = 'Request failed: ' + (e && e.message ? e.message : e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById('audSaveBtn').addEventListener('click', saveAudioSettings);
+
+srvOnboardBtn.addEventListener('click', async () => {
+  const email = srvEmail.value.trim();
+  if (!email) {
+    showSrvOutput('Email is required — it must match the email on the onboarding key.');
+    return;
+  }
+  // Stage any unsaved endpoint/key first so the user doesn't have to click Save then Onboard.
+  const baseUrl = srvBaseUrl.value.trim();
+  const apiKey  = srvApiKey.value;
+  const orig = srvOnboardBtn.textContent;
+  srvSaveBtn.disabled = true;
+  srvOnboardBtn.disabled = true;
+  srvOnboardBtn.textContent = 'Onboarding…';
+  try {
+    if (baseUrl || apiKey) {
+      const stage = {};
+      if (baseUrl) stage.base_url = baseUrl;
+      if (apiKey)  stage.api_key  = apiKey;
+      const saved = await postJson('/api/actions/save_server_settings', stage);
+      if (!saved.data.ok) {
+        showSrvOutput('✗ Could not save settings — aborted before onboarding',
+                      saved.data.error || JSON.stringify(saved.data));
+        return;
+      }
+      srvApiKey.value = '';
+    }
+    const { status, data } = await postJson('/api/actions/onboard', { email });
+    if (data.ok) {
+      const ob = data.onboarded || {};
+      showSrvOutput('✓ Onboarded' + (ob.idempotent ? ' (idempotent — already bound)' : ''),
+        'project_id: ' + ob.project_id +
+        '\ndevice_id : ' + ob.device_id +
+        '\nunit_id   : ' + ob.unit_id);
+      srvEmail.value = '';
+      tick();
+    } else {
+      showSrvOutput('✗ Onboarding failed (HTTP ' + (data.status_code ?? '—') + ')',
+                    data.error || data.raw_body || JSON.stringify(data));
+    }
+  } catch (e) {
+    showSrvOutput('Request failed: ' + (e && e.message ? e.message : e));
+  } finally {
+    srvSaveBtn.disabled = false;
+    srvOnboardBtn.disabled = false;
+    srvOnboardBtn.textContent = orig;
+  }
+});
+</script>
+</body>
+</html>
