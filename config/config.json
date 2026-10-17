@@ -1,0 +1,160 @@
+{
+  "mode": "relay",
+  "transport": "xbee",
+
+  "device_id_file": "/home/sparrow/robin/device_id.txt",
+
+  "dest_dir": "/home/sparrow/robin/images",
+  "audio_dir": "/home/sparrow/robin/audio",
+  "pending_count_file": "/home/sparrow/robin/processed_count.txt",
+
+  "capture_manager": {
+  "capture_mode": "camera-usb"
+  },
+
+  "sdwire": {
+    "vbus_pin": 17,
+    "vidpid": "0bda:0316",
+    "partition": "/dev/sda1",
+    "mount": "/mnt/sdwire",
+    "camera_subdir": "DCIM",
+    "power_on_sec": 2.0,
+    "power_off_sec": 0.8,
+    "switch_back_to_target": true,
+
+    "max_attempts": 5,
+    "wait_ctrl_sec": 12.0,
+    "wait_partition_sec": 15.0,
+    "poll_interval_sec": 0.25
+  },
+
+  "camera_usb": {
+    "vbus": {
+      "backend": "gpio",
+      "pin": 17
+    },
+    "vbus_pin": 17,
+    "mount": "/mnt/camera",
+    "auto_mount_base": "/media/sparrow"
+  },
+
+  "image": {
+    "enable_compression": true,
+    "jpeg_quality": 82,
+    "max_dim": 800,
+    "strip_exif": false,
+    "stable_file_sec": 1.0
+  },
+
+  "ftp": {
+    "enabled": true,
+    "user": "camera",
+    "password": "password",
+    "port": 21
+  },
+
+  "email": {
+    "enabled": true
+  },
+
+  "xbee": {
+    "port": "/dev/ttyUSB0",
+    "baud": 115200,
+    "family": "868",
+    "master_ni": "SPARROW_MASTER",
+    "dest64": "",
+    "txstatus": "on",
+    "window": 16,
+    "chunk": 220,
+    "retries": 3,
+    "status_timeout": 1.5,
+    "pace_ms": 0,
+    "rd_interval": 2.0,
+    "go_timeout": 120.0,
+    "ok_timeout": 30.0,
+    "pool_quantum": 2
+  },
+
+  "audio": {
+    "enabled": true,
+    "SAMPLE_RATE": 48000,
+    "MONITOR_DURATION": 1,
+    "RECORD_DURATION": 10,
+    "THRESHOLD": 2500,
+    "MODE": "schedule",
+    "SCHEDULE": {
+      "interval_minutes": 30,
+      "duration_seconds": 10
+    },
+    "device": "",
+    "encode_bitrate_kbps": 48
+  },
+
+  "audio_detector": {
+    "enabled": true,
+    "model_dir": "models/md-audiobirds-v1",
+    "keep_blanks": false,
+    "conf_threshold": 0.9,
+    "window_sec": 1.0,
+    "stride_sec": 0.3,
+    "sample_rate": 48000,
+    "n_fft": 2048,
+    "hop_length": 512,
+    "n_mels": 224,
+    "fmin": 0,
+    "fmax": 24000,
+    "top_db": 80.0,
+    "num_threads": 4,
+    "status_file": "/home/sparrow/robin/audio_detector_status.json",
+    "sidecar_suffix": ".det.json"
+  },
+
+  "bme688": {
+    "enabled": true,
+    "i2c_bus": 1,
+    "read_interval_sec": 5,
+    "readings_dir": "/home/sparrow/robin/readings",
+    "detect_retry_sec": 30
+  },
+
+  "launcher": {
+  "loop_sleep_sec": 1800,
+  "post_capture_delay_sec": 3,
+  "capture_timeout_sec": 0,
+  "detector_timeout_sec": 0,
+  "xbee_sender_timeout_sec": 0
+  },
+
+  "detector": {
+    "enabled": true,
+    "model_dir": "models/MDV6-yolov10-c",
+    "keep_blanks": true,
+    "conf_threshold": 0.25,
+    "iou_threshold": 0.5,
+    "input_size": 640,
+    "num_threads": 4,
+    "status_file": "/home/sparrow/robin/detector_status.json",
+    "sidecar_suffix": ".det.json"
+  },
+
+  "server": {
+    "base_url": "https://server.sparrow-earth.com",
+    "image_endpoint_path": "/v1/uploads/image",
+    "audio_endpoint_path": "/v1/uploads/audio",
+    "metrics_endpoint_path": "/v1/metrics/system",
+    "auth_key_file": "access_key.txt",
+    "unit_id": "",
+    "send_metrics": true,
+    "connectivity_timeout_sec": 8,
+    "upload_timeout_sec": 30,
+    "retry_sleep_sec": 5,
+    "status_file": "/home/sparrow/robin/uploader_status.json"
+  },
+
+  "signal_monitor": {
+    "interval_sec": 15.0,
+    "poll_timeout_sec": 2.0,
+    "poll_repeat_sec": 0.75,
+    "output_file": "/home/sparrow/robin/rssi.json"
+  }
+}
