@@ -1,17 +1,21 @@
-![image](https://zenodo.org/badge/DOI/10.5281/zenodo.23408340.svg)
+![image](https://zenodo.org/records/23408340/files/SPARROWmini-banner.png)
  
-<div align="center">
+  </a>
+</p>
+
+<div align="center"> 
 <font size="6"> Accelerating Research and Conservation with Edge AI.</font>
 <br>
 <hr>
 <!-- Badges Section -->
 <p align="center">
-  <!-- License -->
-  https://img.shields.io/badge/license-MIT-blue
+  <!-- License -->  
+    <img src="https://pypi-camo.freetls.fastly.net/cd0913ed24368b790668a699719b5562b033448d/68747470733a2f2f696d672e736869656c64732e696f2f707970692f6c2f5079746f72636857696c646c696665">
+  <!-- Docker -->
+    <img src="https://img.shields.io/badge/docker-ready-blue?logo=docker">
   <!-- Contributions Welcome -->
-  https://img.shields.io/badge/contributions-welcome-brsvg
+  <img src="https://img.shields.io/badge/contributions-welcome-brsvg">
 <br><br>
-</p>
 </div>
 
 # 👋 Welcome to SPARROWmini
@@ -20,7 +24,7 @@
 
 To overcome the communication challenges of remote deployments, SPARROWmini incorporates an integrated Digi XBee 868 MHz radio (EU) or Digi XBee-PRO 900 (US), enabling devices to form a self-healing DigiMesh network. Individual SPARROWmini units can relay detections, images, sensor measurements, and status information between neighbouring nodes over distances of up to approximately 10 km in open terrain, allowing monitoring networks to be extended well beyond the coverage of cellular or satellite communications. Through multi-hop communication, data from multiple SPARROWmini devices is forwarded across the mesh to a central **SPARROW gateway**, which provides the backhaul connection via 4G cellular or low-Earth-orbit satellite communications. This architecture enables large-scale biodiversity monitoring across remote landscapes while maintaining low power consumption and reducing communication costs.
 
-docs/deployment-topologies.png
+![SPARROW Mini DigiMesh deployment topologies — open terrain and woodland node spacing, relaying to a SPARROW gateway](docs/deployment-topologies.png)
 
 To access the SPARROWmini repository, please visit [aka.ms/sparrowmini](https://aka.ms/sparrowmini).
 
