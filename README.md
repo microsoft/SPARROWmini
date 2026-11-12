@@ -95,6 +95,7 @@ To view a copy of this license, visit: [MIT License](https://mit-license.org/)
 
 - A **per-port-power-switching USB hub** (PPPS, check with `sudo uhubctl`) so the node can cut VBUS to the camera between cycles; otherwise a GPIO-driven power switch works.
 - A **BME688** environmental sensor on I²C for temperature / humidity / pressure (reported in the direct-mode metrics).
+- An **external USB Wi-Fi adapter** if you want more hotspot range or an external antenna than the Pi's onboard radio gives (select it at install with `--ap-iface`; AP-capable chipsets like MediaTek MT7601/MT7612U or Ralink RT5370 are the safe bet).
 
 ### Hardware Assembly Instructions
 
@@ -131,6 +132,14 @@ sudo ./install.sh --pass <wifi-psk> --xbee-family 900   # or 868
 ```
 
 The chosen family is saved to `config.json` (`xbee.family`), so the web UI's **Configure XBee** button and any later re-config use the right sequence. It's also shown on the status page's Config card. (`XBEE_FAMILY=900` as an env var works too.)
+
+**Wi-Fi adapter for the hotspot.** By default the installer hosts the status-page hotspot on the Pi's **onboard** Wi-Fi (`wlan0`). To use an **external USB Wi-Fi adapter** instead, for better range, an external antenna, or on a board whose onboard radio is flaky, pass `--ap-iface`:
+
+```bash
+sudo ./install.sh --pass <wifi-psk> --ap-iface wlan1   # whatever the adapter enumerates as
+```
+
+With no `--ap-iface`, the installer **auto-detects and defaults back safely**: it prefers the onboard `wlan0`, and only falls back to a USB adapter if the onboard radio is missing or can't do AP mode. So existing single-radio nodes behave exactly as before. Not every USB chipset supports AP / hostapd mode, NetworkManager-friendly ones (e.g. many **MediaTek MT7601 / MT7612U** or **Ralink RT5370** dongles) are the safe bet; some cheap Realtek adapters need out-of-tree drivers. If the chosen interface reports no AP support the installer warns but still attempts it. (`AP_IFACE=wlan1` as an env var works too.)
 
 **IP-camera FTP credentials.** If you use a WiFi/IP camera that pushes over FTP, pass its login with `--ftp-user` / `--ftp-pass` and the installer writes them into `config.json`, no manual edit needed. Both are optional; omit them to keep the shipped default (`camera` / `password`). A typical field install is one line:
 
