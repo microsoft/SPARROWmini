@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  install.sh  —  one-shot Sparrow Mini bootstrap for a fresh Raspberry Pi
+#  install.sh  —  one-shot SPARROW Mini bootstrap for a fresh Raspberry Pi
 #
 #  Brings a freshly-flashed Pi (Pi OS Lite, primary user "sparrow") to a
 #  running robin.service in one command. Idempotent — re-runs are safe.
@@ -30,6 +30,10 @@ XBEE_FAMILY="${XBEE_FAMILY:-}"
 # shipped config.json already has (camera/password); pass a flag to override.
 FTP_USER=""
 FTP_PASS=""
+# Wi-Fi interface that hosts the hotspot. Blank = auto-detect (prefers the
+# onboard wlan0, falls back to an AP-capable USB adapter). Set e.g. wlan1 to
+# force a specific external adapter. Also readable from $AP_IFACE.
+AP_IFACE="${AP_IFACE:-}"
 
 # Internal state
 NEEDS_REBOOT=false
@@ -43,6 +47,10 @@ Required:
 
 Optional:
   --ssid <name>               Hotspot SSID. Default: SparrowMini
+  --ap-iface <name>           Wi-Fi interface to host the hotspot, e.g. wlan1 for
+                              a USB adapter. Default: auto-detect (prefers the
+                              onboard wlan0, falls back to an AP-capable USB
+                              adapter). Also readable from the AP_IFACE env var.
   --mode relay|direct         Starting transport mode. Default: relay
   --server-url <url>          Cloud endpoint base URL (required if --mode direct)
   --api-key <value|@file>     API key value, or @/path/to/file (required if --mode direct)
@@ -92,6 +100,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --pass)        WIFI_PASS="${2:-}";  shift 2 ;;
     --ssid)        SSID="${2:-}";       shift 2 ;;
+    --ap-iface)    AP_IFACE="${2:-}";   shift 2 ;;
     --mode)        MODE="${2:-}";       shift 2 ;;
     --server-url)  SERVER_URL="${2:-}"; shift 2 ;;
     --api-key)     API_KEY_RAW="${2:-}";shift 2 ;;
@@ -161,11 +170,12 @@ if [[ "$MODE" == "direct" ]]; then
   done
 fi
 
-log "Sparrow Mini install starting"
+log "SPARROW Mini install starting"
 log "  project dir   : $PROJECT_DIR"
 log "  user          : $SPARROW_USER"
 log "  mode          : $MODE"
 log "  ssid          : $SSID"
+log "  ap interface  : ${AP_IFACE:-auto}"
 [[ "$MODE" == "direct" ]] && log "  server url    : $SERVER_URL"
 [[ "$MODE" == "direct" ]] && log "  onboarding to : $EMAIL"
 
@@ -250,12 +260,12 @@ step_power() {
   log "Step 3/10: power tweaks — disable Bluetooth + HDMI"
 
   # --- Bluetooth: kill the modem in firmware, then stop the service ---
-  # Sparrow Mini's XBee is on /dev/ttyUSB0 (USB), not the GPIO UART, so disable-bt is
+  # SPARROW Mini's XBee is on /dev/ttyUSB0 (USB), not the GPIO UART, so disable-bt is
   # safe — it leaves WiFi and the serial console untouched.
   local boot_cfg; boot_cfg="$(detect_boot_cfg)"
   if [[ -n "$boot_cfg" ]]; then
     if grep -qE '^[[:space:]]*dtoverlay=miniuart-bt[[:space:]]*$' "$boot_cfg"; then
-      sed -i 's/^[[:space:]]*dtoverlay=miniuart-bt[[:space:]]*$/#&  # disabled by sparrow mini install (save power)/' "$boot_cfg"
+      sed -i 's/^[[:space:]]*dtoverlay=miniuart-bt[[:space:]]*$/#&  # disabled by SPARROW Mini install (save power)/' "$boot_cfg"
       log "  commented dtoverlay=miniuart-bt in $boot_cfg"
       NEEDS_REBOOT=true
     fi
@@ -410,14 +420,76 @@ PY
 }
 
 # -----------------------------------------------------------------------------
-# Step: ap — Wi-Fi hotspot setup via NetworkManager (inlined from robin_setup.sh)
+# Step: ap — Wi-Fi hotspot setup via NetworkManager
 # -----------------------------------------------------------------------------
-# Creates/updates a NetworkManager AP connection on wlan0: WPA2-PSK, ipv4 shared
+# Creates/updates a NetworkManager AP connection: WPA2-PSK, ipv4 shared
 # (NAT + DHCP), autoconnect, AP-isolation off, a stable DHCP range, and an
 # upstream-DNS dnsmasq drop-in. SSID/password already validated up top.
+# The hosting interface is $AP_IFACE if set, else auto-detected (see
+# ap_resolve_iface) so an external USB Wi-Fi adapter works, not just wlan0.
+
+# List NetworkManager-managed Wi-Fi interface names (one per line).
+ap_wifi_devices() {
+  nmcli -t -f DEVICE,TYPE dev status 2>/dev/null | awk -F: '$2=="wifi"{print $1}'
+}
+
+# True unless NetworkManager explicitly reports the device can't do AP mode.
+# Absent/unknown AP property => assume capable (let the later 'up' be the judge),
+# so we never wrongly skip an adapter NM just hasn't fully probed.
+ap_is_ap_capable() {
+  ! nmcli -f WIFI-PROPERTIES.AP device show "$1" 2>/dev/null \
+      | grep -qiE 'WIFI-PROPERTIES.AP:[[:space:]]*no\b'
+}
+
+# Pick an interface among the present Wi-Fi devices, preferring onboard wlan0
+# for backward compatibility, then the first AP-capable device, then (last
+# resort) the first device at all. Echoes nothing if there are no Wi-Fi devices.
+ap_pick_auto() {
+  local devs dev
+  devs="$(ap_wifi_devices)"
+  [[ -z "$devs" ]] && return 0
+  if grep -qx "wlan0" <<<"$devs" && ap_is_ap_capable "wlan0"; then echo "wlan0"; return 0; fi
+  while read -r dev; do
+    [[ -n "$dev" ]] && ap_is_ap_capable "$dev" && { echo "$dev"; return 0; }
+  done <<<"$devs"
+  head -n1 <<<"$devs"   # nothing reports AP-capable; use the first and warn later
+}
+
+# Resolve the hotspot interface, polling because Wi-Fi can be slow after boot.
+# Honors $AP_IFACE (waits for that exact device); otherwise auto-detects.
+# Echoes the chosen interface, or returns 1 if none appears in time.
+ap_resolve_iface() {
+  local waited=0 reloaded=false pick
+  while :; do
+    if [[ -n "$AP_IFACE" ]]; then
+      if nmcli -t -f DEVICE dev status 2>/dev/null | grep -qx "$AP_IFACE"; then
+        ap_is_ap_capable "$AP_IFACE" \
+          || warn "  '$AP_IFACE' reports no AP-mode support — trying anyway (check the adapter's driver/chipset)"
+        echo "$AP_IFACE"; return 0
+      fi
+    else
+      pick="$(ap_pick_auto)"
+      [[ -n "$pick" ]] && { echo "$pick"; return 0; }
+    fi
+    # The Pi Zero 2 W's onboard brcmfmac SDIO Wi-Fi is sometimes slow, or fails
+    # its firmware load ("Downloaded RAM image is corrupted"); reload it once
+    # mid-wait to recover. (Harmless for USB adapters — they're a different driver.)
+    if (( waited >= 15 )) && ! $reloaded; then
+      warn "  no Wi-Fi interface yet after ${waited}s — reloading brcmfmac (onboard radio firmware may have failed at boot)"
+      modprobe -r brcmfmac >/dev/null 2>&1 || true
+      sleep 1
+      modprobe brcmfmac >/dev/null 2>&1 || true
+      reloaded=true
+    fi
+    if (( waited >= 45 )); then return 1; fi
+    log "  waiting for ${AP_IFACE:-a Wi-Fi interface} to come up... (${waited}s)"
+    sleep 5
+    waited=$((waited + 5))
+  done
+}
+
 step_ap() {
   log "Step 6/10: configuring Wi-Fi AP (SSID='$SSID')"
-  local iface="wlan0"
   local con="$SSID"
   local band="bg"   # 2.4GHz
 
@@ -425,30 +497,15 @@ step_ap() {
     err "nmcli not found — NetworkManager should have been installed in step_apt."
     exit 2
   fi
-  # Wait for wlan0. The Pi Zero 2 W's brcmfmac SDIO WiFi is sometimes slow to
-  # bring up wlan0 after boot, or fails its firmware load outright ("Downloaded
-  # RAM image is corrupted"). If we check once and give up, the AP is silently
-  # skipped and the node ships with no hotspot. So: poll for the interface, and
-  # reload the driver once mid-wait to recover from a failed firmware load.
-  local waited=0 reloaded=false
-  until nmcli -t -f DEVICE dev status | grep -qx "$iface"; do
-    if (( waited >= 15 )) && ! $reloaded; then
-      warn "  '$iface' not up after ${waited}s — reloading brcmfmac (WiFi firmware may have failed at boot)"
-      modprobe -r brcmfmac >/dev/null 2>&1 || true
-      sleep 1
-      modprobe brcmfmac >/dev/null 2>&1 || true
-      reloaded=true
-    fi
-    if (( waited >= 45 )); then
-      warn "interface '$iface' not found after ${waited}s — skipping AP setup. Bring it up later with 'nmcli' or re-run install.sh once wlan0 is present."
-      return 0
-    fi
-    log "  waiting for '$iface' to come up... (${waited}s)"
-    sleep 5
-    waited=$((waited + 5))
-  done
 
   systemctl enable --now NetworkManager >/dev/null 2>&1 || true
+
+  local iface
+  if ! iface="$(ap_resolve_iface)"; then
+    warn "no usable Wi-Fi interface found after 45s — skipping AP setup. Plug in an adapter (or fix the onboard radio) and re-run install.sh, or pass --ap-iface <name>."
+    return 0
+  fi
+  log "  hosting hotspot on interface '$iface'"
 
   if nmcli -t -f NAME connection show | grep -qx "$con"; then
     log "  updating existing connection '$con'"
@@ -703,7 +760,7 @@ step_summary() {
   cat <<EOF
 
 ==============================================================================
-[install] Sparrow Mini install complete.
+[install] SPARROW Mini install complete.
 
   Web UI         http://10.42.0.1:8080     (over the Pi's Wi-Fi AP '$SSID')
 ${lan_ip:+                  http://$lan_ip:8080         (over LAN)}
